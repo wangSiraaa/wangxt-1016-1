@@ -1,6 +1,86 @@
-import type { Resource, Order, WeatherOption, OrderResource } from '@/types';
+import type { Resource, Order, WeatherOption, OrderResource, ScheduleEvent, SupplierTerms } from '@/types';
 import { generateId, addDays, formatDate, addHours } from '@/utils/dateUtils';
 import { generatePaymentPlans, calculateDeposit, calculateResourcePrice } from '@/utils/feeUtils';
+
+const venueTerms: SupplierTerms = {
+  depositRate: 0.5,
+  balanceDueDays: 14,
+  reschedulePenaltyRate: 0.2,
+  cancelPenaltyRate: 0.5,
+  minPreparationDays: 30,
+  weekendSurchargeRate: 0.2,
+  holidaySurchargeRate: 0.5,
+};
+
+const photographyTerms: SupplierTerms = {
+  depositRate: 0.3,
+  balanceDueDays: 7,
+  reschedulePenaltyRate: 0.1,
+  cancelPenaltyRate: 0.3,
+  minPreparationDays: 14,
+  weekendSurchargeRate: 0.2,
+  holidaySurchargeRate: 0.3,
+};
+
+const hostTerms: SupplierTerms = {
+  depositRate: 0.3,
+  balanceDueDays: 3,
+  reschedulePenaltyRate: 0.15,
+  cancelPenaltyRate: 0.4,
+  minPreparationDays: 7,
+  weekendSurchargeRate: 0.25,
+  holidaySurchargeRate: 0.4,
+};
+
+const makeupTerms: SupplierTerms = {
+  depositRate: 0.3,
+  balanceDueDays: 3,
+  reschedulePenaltyRate: 0.1,
+  cancelPenaltyRate: 0.3,
+  minPreparationDays: 7,
+  weekendSurchargeRate: 0.15,
+  holidaySurchargeRate: 0.3,
+};
+
+const carTerms: SupplierTerms = {
+  depositRate: 0.4,
+  balanceDueDays: 7,
+  reschedulePenaltyRate: 0.15,
+  cancelPenaltyRate: 0.4,
+  minPreparationDays: 10,
+  weekendSurchargeRate: 0.2,
+  holidaySurchargeRate: 0.35,
+};
+
+const decorTerms: SupplierTerms = {
+  depositRate: 0.5,
+  balanceDueDays: 14,
+  reschedulePenaltyRate: 0.25,
+  cancelPenaltyRate: 0.6,
+  minPreparationDays: 21,
+  weekendSurchargeRate: 0.1,
+  holidaySurchargeRate: 0.3,
+};
+
+const rehearsalTerms: SupplierTerms = {
+  depositRate: 0.2,
+  balanceDueDays: 1,
+  reschedulePenaltyRate: 0.05,
+  cancelPenaltyRate: 0.2,
+  minPreparationDays: 3,
+  weekendSurchargeRate: 0,
+  holidaySurchargeRate: 0.1,
+};
+
+const welcomeDinnerTerms: SupplierTerms = {
+  depositRate: 0.4,
+  balanceDueDays: 7,
+  reschedulePenaltyRate: 0.15,
+  cancelPenaltyRate: 0.4,
+  minPreparationDays: 14,
+  weekendSurchargeRate: 0.15,
+  holidaySurchargeRate: 0.3,
+};
 
 export const mockResources: Resource[] = [
   {
@@ -14,6 +94,7 @@ export const mockResources: Resource[] = [
     serviceHours: 8,
     cleanupHours: 2,
     confirmed: true,
+    terms: venueTerms,
   },
   {
     id: 'res-venue-002',
@@ -26,6 +107,7 @@ export const mockResources: Resource[] = [
     serviceHours: 10,
     cleanupHours: 3,
     confirmed: true,
+    terms: venueTerms,
   },
   {
     id: 'res-photo-001',
@@ -38,6 +120,7 @@ export const mockResources: Resource[] = [
     serviceHours: 10,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: photographyTerms,
   },
   {
     id: 'res-photo-002',
@@ -50,6 +133,7 @@ export const mockResources: Resource[] = [
     serviceHours: 10,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: photographyTerms,
   },
   {
     id: 'res-photo-003',
@@ -62,6 +146,7 @@ export const mockResources: Resource[] = [
     serviceHours: 12,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: photographyTerms,
   },
   {
     id: 'res-video-001',
@@ -74,6 +159,7 @@ export const mockResources: Resource[] = [
     serviceHours: 10,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: photographyTerms,
   },
   {
     id: 'res-video-002',
@@ -86,6 +172,7 @@ export const mockResources: Resource[] = [
     serviceHours: 10,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: photographyTerms,
   },
   {
     id: 'res-host-001',
@@ -98,6 +185,7 @@ export const mockResources: Resource[] = [
     serviceHours: 4,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: hostTerms,
   },
   {
     id: 'res-host-002',
@@ -110,6 +198,7 @@ export const mockResources: Resource[] = [
     serviceHours: 4,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: hostTerms,
   },
   {
     id: 'res-makeup-001',
@@ -122,6 +211,7 @@ export const mockResources: Resource[] = [
     serviceHours: 8,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: makeupTerms,
   },
   {
     id: 'res-makeup-002',
@@ -134,6 +224,7 @@ export const mockResources: Resource[] = [
     serviceHours: 8,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: makeupTerms,
   },
   {
     id: 'res-car-001',
@@ -146,6 +237,7 @@ export const mockResources: Resource[] = [
     serviceHours: 6,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: carTerms,
   },
   {
     id: 'res-car-002',
@@ -158,6 +250,7 @@ export const mockResources: Resource[] = [
     serviceHours: 6,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: carTerms,
   },
   {
     id: 'res-decor-001',
@@ -170,6 +263,7 @@ export const mockResources: Resource[] = [
     serviceHours: 12,
     cleanupHours: 4,
     confirmed: true,
+    terms: decorTerms,
   },
   {
     id: 'res-decor-002',
@@ -182,6 +276,7 @@ export const mockResources: Resource[] = [
     serviceHours: 12,
     cleanupHours: 4,
     confirmed: true,
+    terms: decorTerms,
   },
   {
     id: 'res-rehearsal-001',
@@ -194,13 +289,28 @@ export const mockResources: Resource[] = [
     serviceHours: 2,
     cleanupHours: 0.5,
     confirmed: true,
+    terms: rehearsalTerms,
+  },
+  {
+    id: 'res-welcome-001',
+    type: 'welcomedinner',
+    name: '欢迎晚宴套餐',
+    supplier: '星光大酒店',
+    phone: '13800138003',
+    basePrice: 12000,
+    preparationHours: 2,
+    serviceHours: 4,
+    cleanupHours: 1,
+    confirmed: true,
+    terms: welcomeDinnerTerms,
   },
 ];
 
 function createOrderResource(
   resource: Resource,
   weddingDate: Date | string,
-  serviceStartHour: number
+  serviceStartHour: number,
+  eventId?: string
 ) {
   const dateStr = formatDate(weddingDate);
   const serviceStart = new Date(`${dateStr}T${String(serviceStartHour).padStart(2, '0')}:00:00`);
@@ -220,7 +330,101 @@ function createOrderResource(
     cleanupStart: cleanupStart.toISOString(),
     price,
     status: 'confirmed' as const,
+    eventId,
   };
+}
+
+function generateSchedule(weddingDate: Date | string, resourceIds: string[]): ScheduleEvent[] {
+  const dateStr = formatDate(weddingDate);
+  const dayBefore = formatDate(addDays(weddingDate, -1));
+  const dayAfter = formatDate(addDays(weddingDate, 1));
+  const rainBackupDate = formatDate(addDays(weddingDate, 7));
+  
+  const schedule: ScheduleEvent[] = [
+    {
+      id: generateId(),
+      type: 'welcome_dinner',
+      name: '欢迎晚宴',
+      date: dayBefore,
+      startTime: '18:00',
+      endTime: '21:00',
+      location: '星光大酒店宴会厅',
+      resourceIds: resourceIds.filter(id => id.includes('venue') || id.includes('welcome') || id.includes('host')),
+    },
+    {
+      id: generateId(),
+      type: 'rehearsal',
+      name: '婚礼彩排',
+      date: dayBefore,
+      startTime: '15:00',
+      endTime: '17:00',
+      location: '玫瑰花园仪式区',
+      resourceIds: resourceIds.filter(id => id.includes('host') || id.includes('rehearsal')),
+    },
+    {
+      id: generateId(),
+      type: 'photoshoot',
+      name: '外景拍摄',
+      date: dateStr,
+      startTime: '08:00',
+      endTime: '10:00',
+      location: '城市公园',
+      resourceIds: resourceIds.filter(id => id.includes('photo') || id.includes('video') || id.includes('car')),
+    },
+    {
+      id: generateId(),
+      type: 'tea_ceremony',
+      name: '敬茶仪式',
+      date: dateStr,
+      startTime: '10:30',
+      endTime: '11:30',
+      location: '新人住所',
+      resourceIds: resourceIds.filter(id => id.includes('photo') || id.includes('video')),
+    },
+    {
+      id: generateId(),
+      type: 'ceremony',
+      name: '结婚仪式',
+      date: dateStr,
+      startTime: '11:58',
+      endTime: '12:30',
+      location: '玫瑰花园仪式区',
+      resourceIds: resourceIds.filter(id => !id.includes('rehearsal') && !id.includes('welcome')),
+    },
+    {
+      id: generateId(),
+      type: 'lunch',
+      name: '午宴',
+      date: dateStr,
+      startTime: '12:30',
+      endTime: '14:30',
+      location: '星光宴会厅A',
+      resourceIds: resourceIds.filter(id => id.includes('venue') || id.includes('host') || id.includes('photo') || id.includes('video') || id.includes('decor')),
+    },
+    {
+      id: generateId(),
+      type: 'dinner',
+      name: '晚宴',
+      date: dateStr,
+      startTime: '18:00',
+      endTime: '21:00',
+      location: '星光宴会厅A',
+      resourceIds: resourceIds.filter(id => id.includes('venue') || id.includes('host') || id.includes('photo') || id.includes('video') || id.includes('decor') || id.includes('makeup')),
+    },
+    {
+      id: generateId(),
+      type: 'rain_backup',
+      name: '雨天备选-室内仪式',
+      date: rainBackupDate,
+      startTime: '11:58',
+      endTime: '12:30',
+      location: '星光大酒店室内仪式厅',
+      resourceIds: resourceIds.filter(id => !id.includes('rehearsal') && !id.includes('welcome')),
+      isRainBackup: true,
+    },
+  ];
+
+  return schedule;
 }
 
 function generateWeatherOptions(baseDate: Date | string): WeatherOption[] {
@@ -261,15 +465,31 @@ function buildOrder(
   status: Order['status'],
   planner: string,
   theme: string,
-  serviceStartHour: number = 10
+  serviceStartHour: number = 10,
+  options?: {
+    hasPhotographerConflict?: boolean;
+    hasResourceWithdrawal?: boolean;
+    hasPartialReschedule?: boolean;
+    isPendingDeposit?: boolean;
+  }
 ): Order {
+  const schedule = generateSchedule(weddingDate, resourceIds);
+  
   const orderResources = resourceIds
     .map((id) => {
       const res = mockResources.find((r) => r.id === id);
       if (!res) return null;
-      return createOrderResource(res, weddingDate, serviceStartHour);
+      const event = schedule.find(e => e.resourceIds.includes(id) && !e.isRainBackup);
+      return createOrderResource(res, weddingDate, serviceStartHour, event?.id);
     })
     .filter(Boolean) as OrderResource[];
+
+  if (options?.hasPhotographerConflict) {
+    const photoRes = orderResources.find(r => r.resource.type === 'photography');
+    if (photoRes) {
+      photoRes.conflict = '与订单WH202406002的王芳-资深摄影师在仪式时段冲突';
+    }
+  }
 
   const totalAmount = orderResources.reduce((sum, r) => sum + r.price, 0);
   const deposit = calculateDeposit(totalAmount);
@@ -277,11 +497,78 @@ function buildOrder(
   const paymentPlans = generatePaymentPlans(totalAmount, weddingDate, depositPaid);
   
   const paidAmount = depositPaid ? deposit : 0;
-  const depositExpiresAt = status === 'pending_deposit'
+  const depositExpiresAt = options?.isPendingDeposit
+    ? addHours(new Date(), 2).toISOString()
+    : status === 'pending_deposit'
     ? addHours(new Date(), 2).toISOString()
     : status === 'draft'
     ? addHours(new Date(), 24).toISOString()
     : undefined;
+
+  const resourceWithdrawals = options?.hasResourceWithdrawal ? [
+    {
+      id: generateId(),
+      orderId: '',
+      resourceId: 'res-makeup-001',
+      resourceName: 'Maggie-首席化妆师',
+      supplier: '美丽人生造型',
+      reason: '化妆师突发身体不适，无法提供服务',
+      notifiedAt: addHours(new Date(), -2).toISOString(),
+      alternatives: [
+        {
+          resourceId: 'res-makeup-002',
+          resourceName: 'Lisa-资深化妆师',
+          supplier: '美丽人生造型',
+          priceDifference: -1600,
+          available: true,
+          notes: '同团队资深化妆师，经验丰富',
+        },
+        {
+          resourceId: 'res-makeup-003',
+          resourceName: 'Emily-首席化妆师',
+          supplier: '风尚造型',
+          priceDifference: 800,
+          available: true,
+          notes: '合作供应商首席化妆师，需额外服务费',
+        },
+      ],
+      customerConfirmed: false,
+      status: 'pending' as const,
+    },
+  ] : [];
+
+  const partialReschedules = options?.hasPartialReschedule ? [
+    {
+      id: generateId(),
+      orderId: '',
+      eventId: schedule.find(e => e.type === 'lunch')?.id,
+      resourceIds: ['res-venue-001'],
+      oldDate: formatDate(weddingDate),
+      newDate: formatDate(weddingDate),
+      oldStartTime: '12:30',
+      newStartTime: '14:00',
+      reason: '客户希望延后午宴，只调整场地和餐饮，摄影摄像时间不变',
+      conflicts: [],
+      feeCalculation: {
+        originalTotal: totalAmount,
+        rescheduleFee: 1200,
+        priceDifference: 0,
+        newTotal: totalAmount + 1200,
+        paidAmount: deposit,
+        balanceDue: totalAmount + 1200 - deposit,
+        details: [
+          {
+            name: '星光宴会厅A',
+            oldPrice: 28000,
+            newPrice: 28000,
+            difference: 0,
+          },
+        ],
+      },
+      status: 'pending' as const,
+      createdAt: addHours(new Date(), -1).toISOString(),
+    },
+  ] : [];
 
   return {
     id: generateId(),
@@ -306,6 +593,10 @@ function buildOrder(
     notes: '',
     weatherBackup: generateWeatherOptions(weddingDate),
     version: 1,
+    schedule,
+    resourceWithdrawals,
+    partialReschedules,
+    activeRainBackup: false,
   };
 }
 
@@ -315,10 +606,14 @@ export const mockOrders: Order[] = [
     '张先生 & 李小姐',
     '13800000001',
     date1,
-    ['res-venue-001', 'res-photo-001', 'res-video-001', 'res-host-001', 'res-makeup-001', 'res-car-001', 'res-decor-001', 'res-rehearsal-001'],
+    ['res-venue-001', 'res-photo-001', 'res-video-001', 'res-host-001', 'res-makeup-001', 'res-car-001', 'res-decor-001', 'res-rehearsal-001', 'res-welcome-001'],
     'approved',
     '王策划',
-    '浪漫星空主题'
+    '浪漫星空主题',
+    10,
+    {
+      hasResourceWithdrawal: true,
+    }
   ),
   buildOrder(
     'WH202406002',
@@ -328,17 +623,25 @@ export const mockOrders: Order[] = [
     ['res-venue-002', 'res-photo-002', 'res-video-002', 'res-host-002', 'res-makeup-002', 'res-car-002', 'res-decor-002', 'res-rehearsal-001'],
     'deposit_paid',
     '李策划',
-    '森系花园主题'
+    '森系花园主题',
+    10,
+    {
+      hasPhotographerConflict: true,
+    }
   ),
   buildOrder(
     'WH202406003',
     '王先生 & 赵小姐',
     '13800000003',
     date3,
-    ['res-venue-001', 'res-photo-001', 'res-host-001', 'res-makeup-001', 'res-car-001'],
+    ['res-venue-001', 'res-photo-001', 'res-host-001', 'res-makeup-001', 'res-car-001', 'res-welcome-001'],
     'pending_deposit',
     '王策划',
-    '简约轻奢主题'
+    '简约轻奢主题',
+    10,
+    {
+      isPendingDeposit: true,
+    }
   ),
   buildOrder(
     'WH202406004',
@@ -348,7 +651,11 @@ export const mockOrders: Order[] = [
     ['res-venue-001', 'res-photo-001', 'res-video-001', 'res-host-001', 'res-makeup-001'],
     'rescheduled',
     '张策划',
-    '经典中式主题'
+    '经典中式主题',
+    10,
+    {
+      hasPartialReschedule: true,
+    }
   ),
   buildOrder(
     'WH202406005',
@@ -371,6 +678,19 @@ export const mockOrders: Order[] = [
     '童话城堡主题'
   ),
 ];
+
+mockOrders.forEach((order, index) => {
+  if (order.resourceWithdrawals.length > 0) {
+    order.resourceWithdrawals.forEach(w => {
+      w.orderId = order.id;
+    });
+  }
+  if (order.partialReschedules.length > 0) {
+    order.partialReschedules.forEach(pr => {
+      pr.orderId = order.id;
+    });
+  }
+});
 
 mockOrders[3].rescheduleRecords = [
   {
@@ -456,5 +776,15 @@ mockOrders[0].auditLogs = [
     details: '店长审批通过订单',
     oldValue: '定金已付',
     newValue: '店长审批通过',
+  },
+  {
+    id: generateId(),
+    orderId: mockOrders[0].id,
+    action: '供应商撤回',
+    operator: '系统',
+    timestamp: addHours(new Date(), -2).toISOString(),
+    details: 'Maggie-首席化妆师突发身体不适，需要安排替代方案',
+    oldValue: 'Maggie-首席化妆师',
+    newValue: '待确认替代方案',
   },
 ];

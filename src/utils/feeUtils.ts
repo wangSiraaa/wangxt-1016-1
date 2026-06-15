@@ -1,5 +1,5 @@
-import type { Order, OrderResource, FeeCalculation, PaymentPlan } from '@/types';
-import { addDays, formatDate, generateId, addHours } from './dateUtils';
+import type { Order, OrderResource, FeeCalculation, PaymentPlan, SupplierTerms } from '@/types';
+import { addDays, formatDate, generateId, addHours, diffInDays } from './dateUtils';
 
 export const RESCHEDULE_FEE_RATE = 0.1;
 export const DEPOSIT_RATE = 0.3;
@@ -144,4 +144,91 @@ export function recalculateResourceTimes(
 
 export function formatCurrency(amount: number): string {
   return `¥${amount.toLocaleString('zh-CN')}`;
+}
+
+export function calculateSupplierReschedulePenalty(
+  terms: SupplierTerms,
+  originalPrice: number,
+  daysUntilWedding: number
+): number {
+  const { reschedulePenaltyRate, minPreparationDays } = terms;
+  
+  let penaltyRate = reschedulePenaltyRate;
+  
+  if (daysUntilWedding < minPreparationDays) {
+    penaltyRate = Math.min(penaltyRate + 0.1, 0.5);
+  }
+  
+  if (daysUntilWedding < 7) {
+    penaltyRate = Math.min(penaltyRate + 0.2, 0.8);
+  }
+  
+  return Math.round(originalPrice * penaltyRate);
+}
+
+export function calculatePartialRescheduleFee(
+  order: Order,
+  resourceIds: string[],
+  newDate: string,
+  newStartTime?: string
+): FeeCalculation {
+  const resourcesToReschedule = order.resources.filter((r) => resourceIds.includes(r.resourceId));
+  const otherResources = order.resources.filter((r) => !resourceIds.includes(r.resourceId));
+  
+  const details = resourcesToReschedule.map((oldRes) => {
+    const startHour = newStartTime ? parseInt(newStartTime.split(':')[0]) : 10;
+    const newTimes = recalculateResourceTimes(
+      newDate,
+      startHour,
+      oldRes.resource.preparationHours,
+      oldRes.resource.serviceHours,
+      oldRes.resource.cleanupHours
+    );
+    const newPrice = calculateResourcePrice(
+      oldRes.resource.basePrice,
+      oldRes.resource.serviceHours,
+      newDate
+    );
+    
+    let reschedulePenalty = 0;
+    if (oldRes.resource.terms) {
+      const daysUntilWedding = diffInDays(new Date(order.weddingDate), new Date());
+      reschedulePenalty = calculateSupplierReschedulePenalty(
+        oldRes.resource.terms,
+        oldRes.price,
+        daysUntilWedding
+      );
+    }
+    
+    return {
+      name: oldRes.resource.name,
+      oldPrice: oldRes.price,
+      newPrice: newPrice,
+      difference: newPrice - oldRes.price,
+      reschedulePenalty,
+    };
+  });
+  
+  const priceDifference = details.reduce((sum, d) => sum + d.difference, 0);
+  const reschedulePenaltyTotal = details.reduce((sum, d) => sum + (d.reschedulePenalty || 0), 0);
+  const rescheduleFee = reschedulePenaltyTotal > 0 ? reschedulePenaltyTotal : Math.round(order.totalAmount * 0.05);
+  
+  const unchangedTotal = otherResources.reduce((sum, r) => sum + r.price, 0);
+  const newResourcesTotal = details.reduce((sum, d) => sum + d.newPrice, 0);
+  const newTotal = unchangedTotal + newResourcesTotal + rescheduleFee;
+  
+  return {
+    originalTotal: order.totalAmount,
+    rescheduleFee,
+    priceDifference,
+    newTotal,
+    paidAmount: order.paidAmount,
+    balanceDue: newTotal - order.paidAmount,
+    details: details.map((d) => ({
+      name: d.name,
+      oldPrice: d.oldPrice,
+      newPrice: d.newPrice,
+      difference: d.difference,
+    })),
+  };
 }

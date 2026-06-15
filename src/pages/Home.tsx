@@ -19,6 +19,10 @@ import {
   UserCog,
   Crown,
   User,
+  SplitSquareVertical,
+  CloudRain,
+  AlertOctagon,
+  Sun,
 } from 'lucide-react';
 import { useWeddingStore } from '@/store/weddingStore';
 import WeddingCalendar from '@/components/WeddingCalendar';
@@ -66,6 +70,14 @@ export default function Home() {
 
   const pendingDepositCount = orders.filter(
     (o) => o.status === 'pending_deposit'
+  ).length;
+
+  const activeWithdrawalsCount = orders.filter(
+    (o) => (o.resourceWithdrawals || []).some(w => w.status === 'pending')
+  ).length;
+
+  const pendingPartialReschedulesCount = orders.filter(
+    (o) => (o.partialReschedules || []).some(pr => pr.status === 'pending')
   ).length;
 
   const navItems = [
@@ -238,126 +250,137 @@ export default function Home() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-5 border-b border-gray-100 bg-orange-50">
+          <div className="p-5 border-b border-gray-100 bg-amber-50">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
-                <XCircle className="w-6 h-6 text-orange-600" />
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                <SplitSquareVertical className="w-6 h-6 text-amber-600" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-800">过期禁止改期</h3>
-                <p className="text-sm text-gray-500">婚礼日已过不能改期</p>
+                <h3 className="text-lg font-bold text-gray-800">部分改期差价重算</h3>
+                <p className="text-sm text-gray-500">只改部分资源，差异化计算费用</p>
               </div>
             </div>
           </div>
           <div className="p-5">
             <div className="space-y-3">
-              {orders
-                .filter((o) => {
-                  const weddingDate = new Date(o.weddingDate);
-                  const today = new Date();
-                  today.setHours(0, 0, 0, 0);
-                  return weddingDate < today && o.status !== 'cancelled' && o.status !== 'expired';
-                })
-                .slice(0, 3)
-                .map((order) => (
-                  <div
-                    key={order.id}
-                    onClick={() => setSelectedOrderId(order.id)}
-                    className="p-4 bg-orange-50 rounded-xl border border-orange-100 cursor-pointer hover:bg-orange-100 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-gray-800">{order.customerName}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{order.weddingDate}</p>
+              {orders.filter(o => (o.partialReschedules || []).length > 0).length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-4">暂无部分改期订单</p>
+              ) : (
+                orders
+                  .filter(o => (o.partialReschedules || []).length > 0)
+                  .slice(0, 3)
+                  .map((order) => {
+                    const lastPR = order.partialReschedules![order.partialReschedules!.length - 1];
+                    return (
+                      <div
+                        key={order.id}
+                        onClick={() => setSelectedOrderId(order.id)}
+                        className="p-4 bg-amber-50 rounded-xl border border-amber-100 cursor-pointer hover:bg-amber-100 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-medium text-gray-800">{order.customerName}</p>
+                          <span
+                            className={cn(
+                              'text-xs font-medium px-2 py-0.5 rounded-full',
+                              lastPR.status === 'pending'
+                                ? 'bg-amber-100 text-amber-700'
+                                : lastPR.status === 'approved'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-red-100 text-red-700'
+                            )}
+                          >
+                            {lastPR.status === 'pending'
+                              ? '待审批'
+                              : lastPR.status === 'approved'
+                              ? '已批准'
+                              : '已拒绝'}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-xs">
+                          <p className="text-gray-500">
+                            改期资源: {lastPR.resourceNames.slice(0, 2).join('、')}
+                            {lastPR.resourceNames.length > 2 && `等${lastPR.resourceNames.length}项`}
+                          </p>
+                          <div className="flex items-center gap-3">
+                            <span className={lastPR.priceDifference >= 0 ? 'text-red-500' : 'text-green-500'}>
+                              差价 {lastPR.priceDifference >= 0 ? '+' : ''}
+                              {formatCurrency(lastPR.priceDifference)}
+                            </span>
+                            <span className="text-orange-600">
+                              改期费 {formatCurrency(lastPR.rescheduleFee)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 text-orange-600">
-                        <XCircle className="w-4 h-4" />
-                        <span className="text-xs font-medium">不可改期</span>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded">
-                        {order.status === 'completed' ? '已完成' : '已过期'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              {orders.filter((o) => {
-                const weddingDate = new Date(o.weddingDate);
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                return weddingDate < today && o.status !== 'cancelled' && o.status !== 'expired';
-              }).length === 0 && (
-                <p className="text-gray-400 text-sm text-center py-4">暂无已过期婚礼</p>
+                    );
+                  })
               )}
             </div>
             <div className="mt-4 p-3 bg-gray-50 rounded-lg">
               <p className="text-xs text-gray-600">
                 <span className="font-medium text-gray-700">业务规则：</span>
-                婚礼日期已过的订单不允许改期，避免历史数据混乱
+                支持只改部分资源（如只改场地不改摄像），根据各供应商条款差异化计算违约金和差价
               </p>
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="p-5 border-b border-gray-100 bg-purple-50">
+          <div className="p-5 border-b border-gray-100 bg-indigo-50">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                <RefreshCw className="w-6 h-6 text-purple-600" />
+              <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+                <CloudRain className="w-6 h-6 text-indigo-600" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-800">改期差价</h3>
-                <p className="text-sm text-gray-500">改期重新计算费用</p>
+                <h3 className="text-lg font-bold text-gray-800">雨天备选切换</h3>
+                <p className="text-sm text-gray-500">一键切换雨天/晴天方案</p>
               </div>
             </div>
           </div>
           <div className="p-5">
             <div className="space-y-3">
-              {rescheduledOrders.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-4">暂无改期订单</p>
+              {orders.filter(o => (o.schedule || []).some(e => e.isRainBackup)).length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-4">暂无雨天备选订单</p>
               ) : (
-                rescheduledOrders.slice(0, 3).map((order) => {
-                  const lastRecord = order.rescheduleRecords[order.rescheduleRecords.length - 1];
-                  return (
-                    <div
-                      key={order.id}
-                      onClick={() => setSelectedOrderId(order.id)}
-                      className="p-4 bg-purple-50 rounded-xl border border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="font-medium text-gray-800">{order.customerName}</p>
-                        <span className="text-xs font-medium text-purple-600">
-                          已改期 {order.rescheduleRecords.length} 次
-                        </span>
-                      </div>
-                      {lastRecord && (
-                        <div className="space-y-1 text-xs">
-                          <div className="flex items-center gap-2 text-gray-500">
-                            <span>{lastRecord.oldDate}</span>
-                            <ChevronRight className="w-3 h-3" />
-                            <span className="text-purple-600 font-medium">{lastRecord.newDate}</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-orange-600">
-                              改期费 {formatCurrency(lastRecord.rescheduleFee)}
+                orders
+                  .filter(o => (o.schedule || []).some(e => e.isRainBackup))
+                  .slice(0, 3)
+                  .map((order) => {
+                    const rainEvents = (order.schedule || []).filter(e => e.isRainBackup);
+                    const normalEvents = (order.schedule || []).filter(e => !e.isRainBackup);
+                    return (
+                      <div
+                        key={order.id}
+                        onClick={() => setSelectedOrderId(order.id)}
+                        className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-medium text-gray-800">{order.customerName}</p>
+                          {order.activeRainBackup ? (
+                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full flex items-center gap-1">
+                              <CloudRain className="w-3 h-3" />
+                              雨天方案中
                             </span>
-                            <span className={lastRecord.priceDifference >= 0 ? 'text-red-500' : 'text-green-500'}>
-                              差价 {lastRecord.priceDifference >= 0 ? '+' : ''}
-                              {formatCurrency(lastRecord.priceDifference)}
+                          ) : (
+                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-medium rounded-full flex items-center gap-1">
+                              <Sun className="w-3 h-3" />
+                              晴天方案中
                             </span>
-                          </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })
+                        <div className="text-xs text-gray-500 space-y-0.5">
+                          <p>日程总数: {normalEvents.length} 个活动 + {rainEvents.length} 个雨天备选</p>
+                          <p>婚礼日期: {order.weddingDate}</p>
+                        </div>
+                      </div>
+                    );
+                  })
               )}
             </div>
             <div className="mt-4 p-3 bg-gray-50 rounded-lg">
               <p className="text-xs text-gray-600">
                 <span className="font-medium text-gray-700">业务规则：</span>
-                改期时重新计算所有资源价格（周末加价）、收取改期手续费、检查资源冲突
+                雨天备选活动独立于正常日程，可一键切换，涉及场地变更时自动计算差价
               </p>
             </div>
           </div>
@@ -383,38 +406,62 @@ export default function Home() {
             }}
             className="p-4 bg-yellow-50 hover:bg-yellow-100 rounded-xl transition-colors text-left"
           >
-            <p className="font-medium text-gray-800">查看待付定金订单</p>
-            <p className="text-sm text-gray-500 mt-1">体验24小时过期倒计时</p>
+            <p className="font-medium text-gray-800">定金过期释放</p>
+            <p className="text-sm text-gray-500 mt-1">查看2小时倒计时释放</p>
           </button>
           <button
-            onClick={() => setActiveTab('gantt')}
+            onClick={() => {
+              const order = orders.find((o) => o.resources.some(r => r.conflict));
+              if (order) setSelectedOrderId(order.id);
+            }}
             className="p-4 bg-red-50 hover:bg-red-100 rounded-xl transition-colors text-left"
           >
-            <p className="font-medium text-gray-800">查看资源甘特图</p>
-            <p className="text-sm text-gray-500 mt-1">检查摄影师冲突</p>
+            <p className="font-medium text-gray-800">摄影师冲突</p>
+            <p className="text-sm text-gray-500 mt-1">查看资源冲突提示</p>
           </button>
           <button
             onClick={() => {
-              const order = orders.find((o) => o.status === 'completed');
+              const order = orders.find((o) => (o.partialReschedules || []).length > 0);
               if (order) setSelectedOrderId(order.id);
             }}
-            className="p-4 bg-orange-50 hover:bg-orange-100 rounded-xl transition-colors text-left"
+            className="p-4 bg-amber-50 hover:bg-amber-100 rounded-xl transition-colors text-left"
           >
-            <p className="font-medium text-gray-800">查看已完成订单</p>
-            <p className="text-sm text-gray-500 mt-1">验证不可改期规则</p>
+            <p className="font-medium text-gray-800">部分改期差价重算</p>
+            <p className="text-sm text-gray-500 mt-1">只改仪式不改午宴</p>
           </button>
           <button
             onClick={() => {
-              const order = orders.find((o) => o.status === 'deposit_paid');
+              const order = orders.find((o) => (o.schedule || []).some(e => e.isRainBackup));
               if (order) setSelectedOrderId(order.id);
             }}
-            className="p-4 bg-purple-50 hover:bg-purple-100 rounded-xl transition-colors text-left"
+            className="p-4 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors text-left"
           >
-            <p className="font-medium text-gray-800">申请改期体验</p>
-            <p className="text-sm text-gray-500 mt-1">查看改期费用计算</p>
+            <p className="font-medium text-gray-800">雨天备选切换</p>
+            <p className="text-sm text-gray-500 mt-1">一键切换雨天方案</p>
           </button>
         </div>
       </div>
+
+      {activeWithdrawalsCount > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+          <div className="flex items-center gap-3 mb-3">
+            <AlertOctagon className="w-6 h-6 text-red-600" />
+            <div>
+              <h3 className="font-bold text-red-800">资源撤回待处理</h3>
+              <p className="text-sm text-red-600">有 {activeWithdrawalsCount} 个资源被供应商临时撤回，需要立即处理</p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const order = orders.find((o) => (o.resourceWithdrawals || []).some(w => w.status === 'pending'));
+              if (order) setSelectedOrderId(order.id);
+            }}
+            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm"
+          >
+            立即处理
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -456,10 +503,34 @@ export default function Home() {
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold text-gray-800">待处理事项</h3>
               <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded-full">
-                {pendingDepositCount + expiredOrders.length}
+                {pendingDepositCount + expiredOrders.length + activeWithdrawalsCount + pendingPartialReschedulesCount}
               </span>
             </div>
             <div className="space-y-3">
+              {activeWithdrawalsCount > 0 && (
+                <div className="flex items-center gap-3 p-3 bg-red-50 rounded-xl">
+                  <AlertOctagon className="w-5 h-5 text-red-600" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-800">资源撤回待处理</p>
+                    <p className="text-xs text-gray-500">供应商临时撤回资源</p>
+                  </div>
+                  <span className="text-red-600 font-bold text-sm">
+                    {activeWithdrawalsCount}
+                  </span>
+                </div>
+              )}
+              {pendingPartialReschedulesCount > 0 && (
+                <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl">
+                  <SplitSquareVertical className="w-5 h-5 text-amber-600" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-800">部分改期待审批</p>
+                    <p className="text-xs text-gray-500">等待店长审批</p>
+                  </div>
+                  <span className="text-amber-600 font-bold text-sm">
+                    {pendingPartialReschedulesCount}
+                  </span>
+                </div>
+              )}
               {pendingDepositCount > 0 && (
                 <div className="flex items-center gap-3 p-3 bg-yellow-50 rounded-xl">
                   <Clock className="w-5 h-5 text-yellow-600" />

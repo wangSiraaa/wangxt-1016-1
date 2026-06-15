@@ -13,6 +13,11 @@ import {
   Building2,
   History,
   Wallet,
+  CalendarDays,
+  SplitSquareVertical,
+  AlertOctagon,
+  CloudRain,
+  Sun,
 } from 'lucide-react';
 import { useWeddingStore } from '@/store/weddingStore';
 import { OrderStatusLabels, OrderStatusColors, ResourceTypeColors } from '@/types';
@@ -24,6 +29,9 @@ import SupplierConfirm from './SupplierConfirm';
 import AuditTrail, { RescheduleHistory } from './AuditTrail';
 import RescheduleModal from './RescheduleModal';
 import ConflictExplain from './ConflictExplain';
+import { ScheduleTimeline } from './ScheduleTimeline';
+import { PartialRescheduleModal } from './PartialRescheduleModal';
+import { ResourceWithdrawalModal } from './ResourceWithdrawalModal';
 
 interface OrderDetailProps {
   orderId: string;
@@ -40,10 +48,15 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     checkRescheduleConflicts,
     approveReschedule,
     currentRole,
+    toggleRainBackup,
+    approvePartialReschedule,
   } = useWeddingStore();
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'resources' | 'payment' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'schedule' | 'resources' | 'payment' | 'history'>('overview');
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [showPartialRescheduleModal, setShowPartialRescheduleModal] = useState(false);
+  const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
+  const [selectedWithdrawalId, setSelectedWithdrawalId] = useState<string | null>(null);
 
   const order = useMemo(() => orders.find((o) => o.id === orderId), [orders, orderId]);
 
@@ -64,9 +77,13 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   const canRescheduleOrder = canReschedule(orderId);
   const isPast = isDatePast(order.weddingDate);
   const hasConflicts = order.resources.some((r) => r.conflict);
+  const activeWithdrawals = (order.resourceWithdrawals || []).filter(w => w.status === 'pending');
+  const pendingPartialReschedules = (order.partialReschedules || []).filter(pr => pr.status === 'pending');
+  const hasRainBackup = (order.schedule || []).some(e => e.isRainBackup);
 
   const tabs = [
     { id: 'overview', label: '合同概览', icon: FileText },
+    { id: 'schedule', label: '日程安排', icon: CalendarDays },
     { id: 'resources', label: '资源安排', icon: Building2 },
     { id: 'payment', label: '付款计划', icon: Wallet },
     { id: 'history', label: '操作记录', icon: History },
@@ -83,6 +100,21 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
   const handleApprove = () => {
     approveOrder(orderId, '张店长');
   };
+
+  const handleToggleRainBackup = (enable: boolean) => {
+    toggleRainBackup(orderId, enable);
+  };
+
+  const handleOpenWithdrawal = (withdrawalId: string) => {
+    setSelectedWithdrawalId(withdrawalId);
+    setShowWithdrawalModal(true);
+  };
+
+  const handleApprovePartialReschedule = (prId: string, approved: boolean) => {
+    approvePartialReschedule(orderId, prId, approved);
+  };
+
+  const selectedWithdrawal = activeWithdrawals.find(w => w.id === selectedWithdrawalId);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -143,14 +175,40 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                 </button>
               )}
 
-              {canRescheduleOrder && (currentRole === 'planner' || currentRole === 'manager') ? (
+              {activeWithdrawals.length > 0 && (
                 <button
-                  onClick={() => setShowRescheduleModal(true)}
-                  className="px-4 py-2 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 transition-colors flex items-center gap-2"
+                  onClick={() => handleOpenWithdrawal(activeWithdrawals[0].id)}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors flex items-center gap-2 animate-pulse"
                 >
-                  <RefreshCw className="w-4 h-4" />
-                  申请改期
+                  <AlertOctagon className="w-4 h-4" />
+                  资源撤回待处理 ({activeWithdrawals.length})
                 </button>
+              )}
+
+              {pendingPartialReschedules.length > 0 && currentRole === 'manager' && (
+                <span className="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg font-medium flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  部分改期待审批 ({pendingPartialReschedules.length})
+                </span>
+              )}
+
+              {canRescheduleOrder && (currentRole === 'planner' || currentRole === 'manager') ? (
+                <>
+                  <button
+                    onClick={() => setShowPartialRescheduleModal(true)}
+                    className="px-4 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors flex items-center gap-2"
+                  >
+                    <SplitSquareVertical className="w-4 h-4" />
+                    部分改期
+                  </button>
+                  <button
+                    onClick={() => setShowRescheduleModal(true)}
+                    className="px-4 py-2 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 transition-colors flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    全部改期
+                  </button>
+                </>
               ) : (
                 <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-400 rounded-lg">
                   <Clock className="w-4 h-4" />
@@ -281,6 +339,88 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
             </div>
 
             <div className="space-y-6">
+              {order.schedule && order.schedule.length > 0 && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-gray-800">日程概览</h2>
+                    <button
+                      onClick={() => setActiveTab('schedule')}
+                      className="text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      查看详情
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {order.schedule
+                      .filter((e) => !e.isRainBackup)
+                      .slice(0, 4)
+                      .map((event) => (
+                        <div
+                          key={event.id}
+                          className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg"
+                        >
+                          <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-800">{event.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {event.date} {event.startTime}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    {order.schedule.filter((e) => !e.isRainBackup).length > 4 && (
+                      <p className="text-xs text-gray-400 text-center py-2">
+                        还有 {order.schedule.filter((e) => !e.isRainBackup).length - 4} 个活动
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {hasRainBackup && (
+                <div
+                  className={`rounded-xl shadow-sm border p-6 ${
+                    order.activeRainBackup
+                      ? 'bg-indigo-50 border-indigo-200'
+                      : 'bg-white border-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-lg font-semibold text-gray-800">雨天备选方案</h2>
+                    {order.activeRainBackup && (
+                      <span className="px-2 py-0.5 bg-indigo-100 text-indigo-600 text-xs font-medium rounded-full">
+                        已激活
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600 mb-4">
+                    {order.activeRainBackup
+                      ? '当前已启用雨天备选方案，点击切换到雨天日程'
+                      : '当前未启用雨天备选方案，如遇下雨可一键切换'}
+                  </p>
+                  <button
+                    onClick={() => handleToggleRainBackup(!order.activeRainBackup)}
+                    className={`w-full py-2.5 rounded-lg font-medium text-sm transition-colors ${
+                      order.activeRainBackup
+                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    }`}
+                  >
+                    {order.activeRainBackup ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Sun className="w-4 h-4" />
+                        切换为晴天方案
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        <CloudRain className="w-4 h-4" />
+                        激活雨天备选
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+
               <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <h2 className="text-lg font-semibold text-gray-800 mb-4">资源概览</h2>
                 <div className="space-y-3">
@@ -342,6 +482,75 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
           </div>
         )}
 
+        {activeTab === 'schedule' && (
+          <div className="space-y-6">
+            <ScheduleTimeline
+              schedule={order.schedule || []}
+              showRainBackup={true}
+              activeRainBackup={order.activeRainBackup}
+              onToggleRainBackup={handleToggleRainBackup}
+            />
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4">供应商条款明细</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 font-medium text-gray-600">资源</th>
+                      <th className="text-right py-3 px-4 font-medium text-gray-600">定金比例</th>
+                      <th className="text-right py-3 px-4 font-medium text-gray-600">尾款天数</th>
+                      <th className="text-right py-3 px-4 font-medium text-gray-600">改期违约金</th>
+                      <th className="text-right py-3 px-4 font-medium text-gray-600">取消违约金</th>
+                      <th className="text-right py-3 px-4 font-medium text-gray-600">最小准备期</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {order.resources.map((resource) => {
+                      const terms = resource.resource.terms;
+                      return (
+                        <tr key={resource.resourceId} className="border-b border-gray-100">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={cn(
+                                  'w-2 h-2 rounded-full',
+                                  ResourceTypeColors[resource.resource.type]
+                                )}
+                              />
+                              <span className="font-medium text-gray-800">
+                                {resource.resource.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-600">
+                            {(terms.depositRate * 100).toFixed(0)}%
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-600">
+                            {terms.balanceDueDays}天
+                          </td>
+                          <td className="py-3 px-4 text-right text-amber-600">
+                            {(terms.reschedulePenaltyRate * 100).toFixed(0)}%
+                          </td>
+                          <td className="py-3 px-4 text-right text-red-600">
+                            {(terms.cancelPenaltyRate * 100).toFixed(0)}%
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-600">
+                            {terms.minPreparationDays}天
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-3 text-xs text-gray-500">
+                备注：违约金比例会根据距离婚礼日期的天数动态调整，距离越近比例越高
+              </p>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'resources' && (
           <SupplierConfirm
             resources={order.resources}
@@ -393,13 +602,154 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
         )}
 
         {activeTab === 'history' && (
-          <div className="grid grid-cols-2 gap-6">
-            <AuditTrail logs={order.auditLogs} title="操作审计" />
-            <RescheduleHistory
-              records={order.rescheduleRecords}
-              showActions={currentRole === 'manager'}
-              onApprove={(recordId, approved) => approveReschedule(orderId, recordId, approved)}
-            />
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-6">
+              <AuditTrail logs={order.auditLogs} title="操作审计" />
+              <RescheduleHistory
+                records={order.rescheduleRecords}
+                showActions={currentRole === 'manager'}
+                onApprove={(recordId, approved) => approveReschedule(orderId, recordId, approved)}
+              />
+            </div>
+
+            {(order.partialReschedules && order.partialReschedules.length > 0) && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">部分改期记录</h2>
+                <div className="space-y-3">
+                  {order.partialReschedules.map((pr) => (
+                    <div
+                      key={pr.id}
+                      className="p-4 bg-gray-50 rounded-xl"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <SplitSquareVertical className="w-5 h-5 text-amber-500" />
+                          <div>
+                            <p className="font-medium text-gray-800">
+                              {pr.resourceIds.length} 个资源部分改期
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              申请时间: {formatDateTime(pr.requestedAt)}
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={cn(
+                            'px-3 py-1 text-xs font-medium rounded-full',
+                            pr.status === 'pending'
+                              ? 'bg-amber-100 text-amber-700'
+                              : pr.status === 'approved'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          )}
+                        >
+                          {pr.status === 'pending'
+                            ? '待审批'
+                            : pr.status === 'approved'
+                            ? '已批准'
+                            : '已拒绝'}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <p className="mb-1">涉及资源: {pr.resourceNames.join('、')}</p>
+                        <p>
+                          费用变化: 原价 {formatCurrency(pr.originalPrice)} → 新价{' '}
+                          {formatCurrency(pr.newPrice)} → 差价{' '}
+                          <span
+                            className={
+                              pr.priceDifference >= 0 ? 'text-green-600' : 'text-red-600'
+                            }
+                          >
+                            {pr.priceDifference >= 0 ? '+' : ''}
+                            {formatCurrency(pr.priceDifference)}
+                          </span>
+                        </p>
+                      </div>
+                      {pr.status === 'pending' && currentRole === 'manager' && (
+                        <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2">
+                          <button
+                            onClick={() => handleApprovePartialReschedule(pr.id, true)}
+                            className="px-4 py-1.5 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
+                          >
+                            批准
+                          </button>
+                          <button
+                            onClick={() => handleApprovePartialReschedule(pr.id, false)}
+                            className="px-4 py-1.5 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600"
+                          >
+                            拒绝
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(order.resourceWithdrawals && order.resourceWithdrawals.length > 0) && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">资源撤回记录</h2>
+                <div className="space-y-3">
+                  {order.resourceWithdrawals.map((w) => (
+                    <div
+                      key={w.id}
+                      className="p-4 bg-gray-50 rounded-xl"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <AlertOctagon className="w-5 h-5 text-red-500" />
+                          <div>
+                            <p className="font-medium text-gray-800">
+                              {w.withdrawnResourceName} 被供应商撤回
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              撤回时间: {formatDateTime(w.withdrawnAt)}
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={cn(
+                            'px-3 py-1 text-xs font-medium rounded-full',
+                            w.status === 'pending'
+                              ? 'bg-red-100 text-red-700'
+                              : w.status === 'resolved'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-700'
+                          )}
+                        >
+                          {w.status === 'pending'
+                            ? '待处理'
+                            : w.status === 'resolved'
+                            ? '已解决'
+                            : '客户拒绝'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        撤回原因: {w.reason}
+                      </p>
+                      {w.alternativeResourceId && w.customerConfirmed && (
+                        <p className="text-sm text-gray-600">
+                          替换为: {w.alternativeResourceName} (差价:{' '}
+                          {w.priceDifference !== undefined && w.priceDifference >= 0
+                            ? '+'
+                            : ''}
+                          {formatCurrency(w.priceDifference || 0)})
+                        </p>
+                      )}
+                      {w.status === 'pending' && (
+                        <button
+                          onClick={() => handleOpenWithdrawal(w.id)}
+                          className="mt-3 px-4 py-1.5 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600"
+                        >
+                          处理
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -409,6 +759,24 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
         isOpen={showRescheduleModal}
         onClose={() => setShowRescheduleModal(false)}
       />
+
+      <PartialRescheduleModal
+        orderId={orderId}
+        isOpen={showPartialRescheduleModal}
+        onClose={() => setShowPartialRescheduleModal(false)}
+      />
+
+      {selectedWithdrawal && (
+        <ResourceWithdrawalModal
+          orderId={orderId}
+          withdrawalId={selectedWithdrawal.id}
+          isOpen={showWithdrawalModal}
+          onClose={() => {
+            setShowWithdrawalModal(false);
+            setSelectedWithdrawalId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

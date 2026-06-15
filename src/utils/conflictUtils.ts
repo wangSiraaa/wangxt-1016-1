@@ -124,3 +124,28 @@ export function getResourcesByType(
 ): OrderResource[] {
   return resources.filter((r) => r.resource.type === type);
 }
+
+export function checkPartialRescheduleConflicts(
+  resourcesToReschedule: OrderResource[],
+  orders: Order[],
+  excludeOrderId: string,
+  rescheduleResourceIds: string[]
+): ConflictInfo[] {
+  const allConflicts: ConflictInfo[] = [];
+
+  for (const resource of resourcesToReschedule) {
+    if (!rescheduleResourceIds.includes(resource.resourceId)) continue;
+
+    const conflicts = checkResourceConflict(
+      resource.resourceId,
+      resource.startTime,
+      resource.endTime,
+      orders,
+      excludeOrderId
+    );
+
+    allConflicts.push(...conflicts);
+  }
+
+  return allConflicts;
+}
