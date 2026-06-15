@@ -13,6 +13,7 @@ interface WeddingState {
   currentUser: string;
   currentRole: 'planner' | 'manager' | 'customer';
   
+  setCurrentRole: (role: 'planner' | 'manager' | 'customer', userName?: string) => void;
   setSelectedOrder: (orderId: string | null) => void;
   addOrder: (order: Order) => void;
   updateOrder: (orderId: string, updates: Partial<Order>) => void;
@@ -54,6 +55,18 @@ export const useWeddingStore = create<WeddingState>()(
       selectedOrderId: null,
       currentUser: '王策划',
       currentRole: 'planner',
+
+      setCurrentRole: (role, userName) => {
+        const userNames: Record<string, string> = {
+          planner: '王策划',
+          manager: '张店长',
+          customer: '李小姐',
+        };
+        set({
+          currentRole: role,
+          currentUser: userName || userNames[role],
+        });
+      },
 
       setSelectedOrder: (orderId) => set({ selectedOrderId: orderId }),
 
@@ -240,6 +253,10 @@ export const useWeddingStore = create<WeddingState>()(
         const order = state.orders.find((o) => o.id === orderId);
         if (!order) return { success: false, message: '订单不存在' };
 
+        if (state.currentRole !== 'planner' && state.currentRole !== 'manager') {
+          return { success: false, message: '只有策划师可以提交改期申请' };
+        }
+
         if (!state.canReschedule(orderId)) {
           return { success: false, message: '婚礼日期已过，不能改期' };
         }
@@ -252,7 +269,7 @@ export const useWeddingStore = create<WeddingState>()(
 
         const rescheduleFee = calculateRescheduleFee(order.totalAmount);
 
-        const newResources = order.resources.map((r) => {
+        const pendingResources = order.resources.map((r) => {
           const times = recalculateResourceTimes(
             newDate,
             10,
@@ -268,11 +285,9 @@ export const useWeddingStore = create<WeddingState>()(
           };
         });
 
-        const newTotal = calculateTotalAmount(newResources);
+        const newTotal = calculateTotalAmount(pendingResources);
         const priceDifference = newTotal - order.totalAmount;
 
-        const newPaymentPlans = generatePaymentPlans(newTotal + rescheduleFee, newDate, true);
-        
         const rescheduleRecord: RescheduleRecord = {
           id: generateId(),
           orderId,
@@ -285,7 +300,7 @@ export const useWeddingStore = create<WeddingState>()(
           approvedBy: '',
           approvedAt: '',
           status: 'pending',
-          conflicts: [],
+          conflicts: conflicts.map((c) => c.resourceName),
         };
 
         set((s) => ({
@@ -293,10 +308,6 @@ export const useWeddingStore = create<WeddingState>()(
             o.id === orderId
               ? {
                   ...o,
-                  weddingDate: newDate,
-                  resources: newResources,
-                  totalAmount: newTotal + rescheduleFee,
-                  paymentPlans: newPaymentPlans,
                   status: 'rescheduled',
                   rescheduleRecords: [...o.rescheduleRecords, rescheduleRecord],
                 }
@@ -307,7 +318,7 @@ export const useWeddingStore = create<WeddingState>()(
         get().addAuditLog(
           orderId,
           '申请改期',
-          `申请从${order.weddingDate}改期至${newDate}，改期费¥${rescheduleFee.toLocaleString()}`,
+          `策划师${state.currentUser}申请从${order.weddingDate}改期至${newDate}，改期费¥${rescheduleFee.toLocaleString()}`,
           order.weddingDate,
           newDate
         );
@@ -324,22 +335,54 @@ export const useWeddingStore = create<WeddingState>()(
         const order = state.orders.find((o) => o.id === orderId);
         if (!order) return;
 
+        if (state.currentRole !== 'manager') {
+          return;
+        }
+
         const record = order.rescheduleRecords.find((r) => r.id === recordId);
         if (!record || record.status !== 'pending') return;
 
+        const now = new Date().toISOString();
+
         if (approved) {
+          const newResources = order.resources.map((r) => {
+            const times = recalculateResourceTimes(
+              record.newDate,
+              10,
+              r.resource.preparationHours,
+              r.resource.serviceHours,
+              r.resource.cleanupHours
+            );
+            const newPrice = calculateResourcePrice(r.resource.basePrice, r.resource.serviceHours, record.newDate);
+            return {
+              ...r,
+              ...times,
+              price: newPrice,
+            };
+          });
+
+          const newTotal = calculateTotalAmount(newResources);
+          const newPaymentPlans = generatePaymentPlans(newTotal + record.rescheduleFee, record.newDate, true);
+
           set((s) => ({
             orders: s.orders.map((o) =>
               o.id === orderId
                 ? {
                     ...o,
+                    weddingDate: record.newDate,
+                    resources: newResources,
+                    totalAmount: newTotal + record.rescheduleFee,
+                    paymentPlans: newPaymentPlans,
+                    status: 'approved',
+                    version: o.version + 1,
+                    manager: s.currentUser,
                     rescheduleRecords: o.rescheduleRecords.map((r) =>
                       r.id === recordId
                         ? {
                             ...r,
                             status: 'approved',
                             approvedBy: s.currentUser,
-                            approvedAt: new Date().toISOString(),
+                            approvedAt: now,
                           }
                         : r
                     ),
@@ -351,7 +394,7 @@ export const useWeddingStore = create<WeddingState>()(
           get().addAuditLog(
             orderId,
             '改期审批通过',
-            `店长审批通过改期申请`,
+            `店长${state.currentUser}审批通过改期申请，从${record.oldDate}改期至${record.newDate}，改期费¥${record.rescheduleFee.toLocaleString()}`,
             '待审批',
             '已通过'
           );
@@ -361,8 +404,16 @@ export const useWeddingStore = create<WeddingState>()(
               o.id === orderId
                 ? {
                     ...o,
+                    status: 'approved',
                     rescheduleRecords: o.rescheduleRecords.map((r) =>
-                      r.id === recordId ? { ...r, status: 'rejected' } : r
+                      r.id === recordId
+                        ? {
+                            ...r,
+                            status: 'rejected',
+                            approvedBy: s.currentUser,
+                            approvedAt: now,
+                          }
+                        : r
                     ),
                   }
                 : o
@@ -372,7 +423,7 @@ export const useWeddingStore = create<WeddingState>()(
           get().addAuditLog(
             orderId,
             '改期审批拒绝',
-            `店长拒绝改期申请`,
+            `店长${state.currentUser}拒绝改期申请，原日期${record.oldDate}保持不变`,
             '待审批',
             '已拒绝'
           );

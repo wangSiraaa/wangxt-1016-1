@@ -38,6 +38,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
     approveOrder,
     canReschedule,
     checkRescheduleConflicts,
+    approveReschedule,
     currentRole,
   } = useWeddingStore();
 
@@ -142,7 +143,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                 </button>
               )}
 
-              {canRescheduleOrder ? (
+              {canRescheduleOrder && (currentRole === 'planner' || currentRole === 'manager') ? (
                 <button
                   onClick={() => setShowRescheduleModal(true)}
                   className="px-4 py-2 bg-purple-500 text-white rounded-lg font-medium hover:bg-purple-600 transition-colors flex items-center gap-2"
@@ -154,7 +155,11 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
                 <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-400 rounded-lg">
                   <Clock className="w-4 h-4" />
                   <span className="text-sm font-medium">
-                    {isPast ? '婚礼已过，不可改期' : '暂不可改期'}
+                    {isPast
+                      ? '婚礼已过，不可改期'
+                      : currentRole === 'customer'
+                      ? '请联系策划师申请改期'
+                      : '暂不可改期'}
                   </span>
                 </div>
               )}
@@ -393,6 +398,7 @@ export default function OrderDetail({ orderId, onBack }: OrderDetailProps) {
             <RescheduleHistory
               records={order.rescheduleRecords}
               showActions={currentRole === 'manager'}
+              onApprove={(recordId, approved) => approveReschedule(orderId, recordId, approved)}
             />
           </div>
         )}

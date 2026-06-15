@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Calendar,
   BarChart3,
@@ -15,6 +15,10 @@ import {
   TrendingUp,
   ChevronRight,
   RotateCcw,
+  ChevronDown,
+  UserCog,
+  Crown,
+  User,
 } from 'lucide-react';
 import { useWeddingStore } from '@/store/weddingStore';
 import WeddingCalendar from '@/components/WeddingCalendar';
@@ -28,9 +32,29 @@ import { formatCurrency } from '@/utils/feeUtils';
 type TabType = 'dashboard' | 'calendar' | 'gantt' | 'orders' | 'demo';
 
 export default function Home() {
-  const { orders, checkExpiredOrders, resetToMockData, currentUser, currentRole } = useWeddingStore();
+  const { orders, checkExpiredOrders, resetToMockData, currentUser, currentRole, setCurrentRole } = useWeddingStore();
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const roleSwitcherRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (roleSwitcherRef.current && !roleSwitcherRef.current.contains(event.target as Node)) {
+        setShowRoleSwitcher(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const roleOptions = [
+    { role: 'planner' as const, label: '策划师', name: '王策划', icon: UserCog, color: 'text-blue-600 bg-blue-100' },
+    { role: 'manager' as const, label: '店长', name: '张店长', icon: Crown, color: 'text-purple-600 bg-purple-100' },
+    { role: 'customer' as const, label: '客户', name: '李小姐', icon: User, color: 'text-green-600 bg-green-100' },
+  ];
+
+  const currentRoleOption = roleOptions.find((r) => r.role === currentRole) || roleOptions[0];
 
   useEffect(() => {
     checkExpiredOrders();
@@ -557,19 +581,54 @@ export default function Home() {
         </nav>
 
         <div className="p-4 border-t border-gray-100">
-          <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center text-white font-bold">
-              {currentUser.charAt(0)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800 truncate">{currentUser}</p>
-              <p className="text-xs text-gray-500">
-                {currentRole === 'planner' ? '策划师' : currentRole === 'manager' ? '店长' : '客户'}
-              </p>
-            </div>
-            <button className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors">
-              <Settings className="w-4 h-4 text-gray-400" />
+          <div ref={roleSwitcherRef} className="relative">
+            <button
+              onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
+              className="w-full flex items-center gap-3 p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              <div className={cn('w-10 h-10 rounded-full flex items-center justify-center font-bold', currentRoleOption.color)}>
+                {currentRoleOption.icon && <currentRoleOption.icon className="w-5 h-5" />}
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-sm font-medium text-gray-800 truncate">{currentUser}</p>
+                <p className="text-xs text-gray-500">{currentRoleOption.label}</p>
+              </div>
+              <ChevronDown className={cn('w-4 h-4 text-gray-400 transition-transform', showRoleSwitcher && 'rotate-180')} />
             </button>
+
+            {showRoleSwitcher && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50">
+                <div className="p-2">
+                  <p className="text-xs text-gray-400 px-3 py-2 font-medium">切换身份</p>
+                  {roleOptions.map((option) => (
+                    <button
+                      key={option.role}
+                      onClick={() => {
+                        setCurrentRole(option.role, option.name);
+                        setShowRoleSwitcher(false);
+                      }}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors',
+                        currentRole === option.role
+                          ? 'bg-purple-50 text-purple-700'
+                          : 'hover:bg-gray-50 text-gray-700'
+                      )}
+                    >
+                      <div className={cn('w-8 h-8 rounded-full flex items-center justify-center', option.color)}>
+                        <option.icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="text-sm font-medium">{option.name}</p>
+                        <p className="text-xs text-gray-500">{option.label}</p>
+                      </div>
+                      {currentRole === option.role && (
+                        <div className="w-2 h-2 bg-purple-500 rounded-full" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </aside>
